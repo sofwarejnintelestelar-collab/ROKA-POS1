@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orden #{{ orden.id }} - Sistema POS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .header-orden {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+        }
+        .orden-card {
+            border-left: 5px solid #6a11cb;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .item-orden {
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-left: 4px solid #20c997;
+        }
+        .badge-estado {
+            font-size: 0.8rem;
+            padding: 5px 10px;
+        }
+        .badge-pendiente { background-color: #fd7e14; }
+        .badge-proceso { background-color: #0dcaf0; }
+        .badge-listo { background-color: #198754; }
+        .precio-item {
+            font-weight: 600;
+            color: #198754;
+        }
+        .observaciones-item {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-style: italic;
+            margin-top: 5px;
+        }
+        .btn-imprimir {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            border: none;
+        }
+        .btn-imprimir:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(106, 17, 203, 0.3);
+        }
+        @media (max-width: 768px) {
+            .item-orden {
+                padding: 10px;
+            }
+            .btn-group {
+                width: 100%;
+            }
+            .btn-group .btn {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark header-orden">
+        <div class="container">
+            <a class="navbar-brand" href="/ordenes">
+                <i class="bi bi-arrow-left"></i> Orden #{{ orden.id }}
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3 d-none d-md-block">
+                    Mesa {{ orden.mesa_numero }} | {{ orden.mozo_nombre }}
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Información de la orden -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card orden-card">
+                    <div class="card-header bg-white d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
+                        <div class="mb-2 mb-md-0">
+                            <h4 class="mb-1"><i class="bi bi-receipt"></i> Orden #{{ orden.id }}</h4>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="badge bg-primary">Mesa {{ orden.mesa_numero }}</span>
+                                <span class="badge bg-secondary">{{ orden.mozo_nombre }}</span>
+                                {% if orden.estado == 'abierta' %}
+                                    <span class="badge bg-success">Abierta</span>
+                                {% elif orden.estado == 'cerrada' %}
+                                    <span class="badge bg-danger">Cerrada</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">{{ orden.estado|title }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <h3 class="text-success mb-0">${{ "%.2f"|format(orden.total) }}</h3>
+                            <small class="text-muted">{{ orden.fecha_apertura.strftime('%d/%m/%Y %H:%M') }}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- Observaciones -->
+                        {% if orden.observaciones %}
+                        <div class="alert alert-info mb-4">
+                            <h6><i class="bi bi-chat-left-text"></i> Observaciones:</h6>
+                            <p class="mb-0">{{ orden.observaciones }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Items de la orden -->
+                        <h5 class="mb-3"><i class="bi bi-list-check"></i> Items ({{ items|length }})</h5>
+                        
+                        {% if items %}
+                        <div class="row">
+                            <div class="col-12">
+                                {% for item in items %}
+                                <div class="item-orden">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <h6 class="mb-1">{{ item.producto_nombre }}</h6>
+                                                <span class="precio-item">
+                                                    ${{ "%.2f"|format(item.precio_unitario * item.cantidad) }}
+                                                </span>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <span class="badge bg-secondary me-2">Cantidad: {{ item.cantidad }}</span>
+                                                    <span class="badge bg-info">Precio: ${{ "%.2f"|format(item.precio_unitario) }}</span>
+                                                </div>
+                                                {% if item.estado_item == 'pendiente' %}
+                                                    <span class="badge badge-pendiente">Pendiente</span>
+                                                {% elif item.estado_item == 'proceso' %}
+                                                    <span class="badge badge-proceso">En proceso</span>
+                                                {% elif item.estado_item == 'listo' %}
+                                                    <span class="badge badge-listo">Listo</span>
+                                                {% endif %}
+                                            </div>
+                                            {% if item.observaciones %}
+                                            <div class="observaciones-item mt-2">
+                                                <i class="bi bi-info-circle"></i> {{ item.observaciones }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-cart-x" style="font-size: 3rem;"></i>
+                            <p class="mt-3 text-muted">No hay items en esta orden</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="card-footer bg-white">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="text-muted">
+                                        <i class="bi bi-clock"></i> 
+                                        Abierta: {{ orden.fecha_apertura.strftime('%H:%M') }}
+                                    </span>
+                                    {% if orden.estado == 'cerrada' %}
+                                    <span class="text-muted">
+                                        <i class="bi bi-clock-history"></i> 
+                                        Cerrada: {{ orden.fecha_cierre.strftime('%H:%M') if orden.fecha_cierre else '' }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                                <div class="btn-group w-100 w-md-auto" role="group">
+                                    <a href="/ordenes" class="btn btn-outline-secondary">
+                                        <i class="bi bi-arrow-left"></i> Volver
+                                    </a>
+                                    {% if orden.estado == 'abierta' %}
+                                    <a href="/editar_orden/{{ orden.id }}" class="btn btn-outline-warning">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </a>
+                                    {% endif %}
+                                    {% if orden.estado == 'abierta' %}
+                                    <a href="/cobrar_orden/{{ orden.id }}" class="btn btn-success">
+                                        <i class="bi bi-cash"></i> Cobrar
+                                    </a>
+                                    {% endif %}
+                                    <button class="btn btn-imprimir" onclick="imprimirOrden()">
+                                        <i class="bi bi-printer"></i> Imprimir
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumen de totales -->
+        <div class="row">
+            <div class="col-12 col-md-6 col-lg-4 ms-auto">
+                <div class="card bg-light">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-calculator"></i> Resumen</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Subtotal:</span>
+                            <span>${{ "%.2f"|format(orden.total / 1.21) }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>IVA (21%):</span>
+                            <span>${{ "%.2f"|format(orden.total - (orden.total / 1.21)) }}</span>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between fs-5 fw-bold">
+                            <span>TOTAL:</span>
+                            <span class="text-success">${{ "%.2f"|format(orden.total) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Función para imprimir la orden
+        function imprimirOrden() {
+            window.print();
+        }
+
+        // Atajos de teclado
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+P para imprimir
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                imprimirOrden();
+            }
+            // Escape para volver
+            if (e.key === 'Escape') {
+                window.location.href = '/ordenes';
+            }
+            // F1 para ayuda
+            if (e.key === 'F1') {
+                e.preventDefault();
+                alert('Atajos de teclado:\n• Ctrl+P: Imprimir orden\n• Escape: Volver a órdenes\n• F1: Mostrar ayuda');
+            }
+        });
+
+        // Auto-refresh si la orden está abierta
+        {% if orden.estado == 'abierta' %}
+        setInterval(() => {
+            location.reload();
+        }, 30000); // Actualizar cada 30 segundos
+        {% endif %}
+    </script>
+</body>
+</html>

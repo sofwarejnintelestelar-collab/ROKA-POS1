@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Órdenes - Sistema POS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .mesa-card {
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .mesa-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .mesa-disponible { background-color: #d4edda; }
+        .mesa-ocupada { background-color: #f8d7da; }
+        .badge-estado { font-size: 0.8rem; }
+        .btn-filtro.active {
+            background-color: #0d6efd;
+            color: white;
+            border-color: #0d6efd;
+        }
+        #filtro-indicador {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/ordenes">POS Restaurante</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/ordenes"><i class="bi bi-house"></i> Inicio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/mesas"><i class="bi bi-table"></i> Mesas</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/productos"><i class="bi bi-box"></i> Productos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/proveedores"><i class="bi bi-truck"></i> Proveedores</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/estadisticas"><i class="bi bi-graph-up"></i> Estadísticas</a>
+                    </li>
+                    <!-- ENLACE COCINA - SIEMPRE VISIBLE -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="/chef"><i class="bi bi-egg-fried"></i> Cocina</a>
+                    </li>
+                    {% if usuario %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ usuario.nombre }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><span class="dropdown-item-text">Rol: {{ usuario.rol }}</span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right"></i> Salir</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Mensajes -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Sección de mesas -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-table"></i> Mesas</h5>
+                <div>
+                    <a href="/mesas" class="btn btn-sm btn-outline-primary me-2">Gestionar</a>
+                    <span class="badge bg-info">
+                        {{ mesas|selectattr('estado', 'equalto', 'disponible')|list|length }} disponibles
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for mesa in mesas %}
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <div class="mesa-card card text-center h-100 
+                                    {% if mesa.estado == 'disponible' %}mesa-disponible{% else %}mesa-ocupada{% endif %}"
+                             onclick="{% if mesa.estado == 'disponible' %}crearOrdenConFiltro({{ mesa.id }}){% endif %}">
+                            <div class="card-body">
+                                <h5 class="card-title">Mesa {{ mesa.numero }}</h5>
+                                <p class="card-text mb-2">
+                                    <small>Capacidad: {{ mesa.capacidad }}</small>
+                                </p>
+                                {% if mesa.estado == 'disponible' %}
+                                    <span class="badge bg-success badge-estado">Disponible</span>
+                                    <p class="mt-2"><small>Clic para crear orden</small></p>
+                                {% else %}
+                                    <span class="badge bg-danger badge-estado">Ocupada</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Órdenes activas -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> Órdenes Activas</h5>
+                <span class="badge bg-primary">{{ ordenes|length }} ordenes</span>
+            </div>
+            <div class="card-body">
+                {% if ordenes %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Orden #</th>
+                                <th>Mesa</th>
+                                <th>Total</th>
+                                <th>Hora</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for orden in ordenes %}
+                            <tr>
+                                <td><strong>#{{ orden.id }}</strong></td>
+                                <td>Mesa {{ orden.mesa_numero }}</td>
+                                <td>${{ "%.2f"|format(orden.total) }}</td>
+                                <td>{{ orden.fecha_apertura.strftime('%H:%M') if orden.fecha_apertura else '' }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/ver_orden/{{ orden.id }}" class="btn btn-outline-primary">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </a>
+                                        {% if orden.estado == 'abierta' %}
+                                        <a href="/editar_orden/{{ orden.id }}" class="btn btn-outline-warning">
+                                            <i class="bi bi-pencil"></i> Editar
+                                        </a>
+                                        {% endif %}
+                                        <a href="/cobrar_orden/{{ orden.id }}" class="btn btn-outline-success">
+                                            <i class="bi bi-cash"></i> Cobrar
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-cart-x" style="font-size: 3rem;"></i>
+                    <p class="mt-3">No hay órdenes activas</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variable global para almacenar el filtro
+        let filtroActual = localStorage.getItem('filtroProductos') || 'todos';
+        
+        // Función para establecer el filtro
+        function establecerFiltro(tipo) {
+            filtroActual = tipo;
+            
+            // Actualizar estado visual de los botones
+            document.querySelectorAll('.btn-filtro').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('btn-' + tipo).classList.add('active');
+            
+            // Actualizar texto del indicador
+            const nombresFiltro = {
+                'todos': 'Todos los productos',
+                'comida': 'Solo Comidas',
+                'bebida': 'Solo Bebidas',
+                'producto': 'Solo Productos'
+            };
+            document.getElementById('filtro-actual').textContent = nombresFiltro[tipo];
+            
+            // Guardar en localStorage para persistencia entre páginas
+            localStorage.setItem('filtroProductos', tipo);
+        }
+        
+        // Función para crear orden con el filtro aplicado
+        function crearOrdenConFiltro(mesaId) {
+            // Redirigir a la página de creación con el filtro como parámetro
+            window.location.href = `/crear_orden/${mesaId}?filtro=${filtroActual}`;
+        }
+        
+        // Cargar filtro al iniciar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            const filtroGuardado = localStorage.getItem('filtroProductos') || 'todos';
+            establecerFiltro(filtroGuardado);
+        });
+    </script>
+</body>
+</html>

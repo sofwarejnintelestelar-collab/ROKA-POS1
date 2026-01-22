@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cobrar Orden #{{ orden_id }} - Sistema POS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+        }
+        .cobro-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-top: 2rem;
+        }
+        .cobro-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 15px 15px 0 0;
+            padding: 2rem;
+            color: white;
+        }
+        .metodo-pago-card {
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        .metodo-pago-card:hover {
+            transform: translateY(-5px);
+            border-color: #f093fb;
+        }
+        .metodo-pago-card.selected {
+            border-color: #198754;
+            background-color: #f8fff9;
+        }
+        .btn-cobrar {
+            background: linear-gradient(135deg, #198754 0%, #157347 100%);
+            border: none;
+            padding: 1rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .btn-cobrar:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(25, 135, 84, 0.4);
+        }
+        .input-cambio {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            color: #198754;
+        }
+        .badge-cambio {
+            font-size: 1rem;
+            padding: 10px 15px;
+        }
+        @media (max-width: 768px) {
+            .cobro-card {
+                margin-top: 1rem;
+            }
+            .cobro-header {
+                padding: 1.5rem;
+            }
+            .metodo-pago-card {
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-12 col-lg-10">
+                <div class="cobro-card">
+                    <!-- Header -->
+                    <div class="cobro-header text-center">
+                        <i class="bi bi-cash-coin" style="font-size: 3rem;"></i>
+                        <h1 class="h3 mt-3">Cobrar Orden #{{ orden_id }}</h1>
+                        <p class="mb-0">Complete los datos para finalizar la venta</p>
+                    </div>
+
+                    <!-- Formulario -->
+                    <div class="p-4">
+                        <form method="POST" action="{{ url_for('cobrar_orden', orden_id=orden_id) }}">
+                            <!-- Total a cobrar -->
+                            <div class="card bg-light mb-4">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted mb-2">TOTAL A COBRAR</h6>
+                                    <h1 class="display-4 text-success">${{ "%.2f"|format(total) }}</h1>
+                                    <small class="text-muted">IVA incluido (21%)</small>
+                                </div>
+                            </div>
+
+                            <!-- Método de pago -->
+                            <div class="mb-4">
+                                <h5 class="mb-3"><i class="bi bi-credit-card"></i> Método de pago</h5>
+                                <div class="row g-3">
+                                    <div class="col-6 col-md-3">
+                                        <div class="metodo-pago-card card text-center p-3" 
+                                             onclick="seleccionarMetodo('efectivo')" id="metodo-efectivo">
+                                            <i class="bi bi-cash" style="font-size: 2rem;"></i>
+                                            <h6 class="mt-2 mb-0">Efectivo</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="metodo-pago-card card text-center p-3"
+                                             onclick="seleccionarMetodo('tarjeta')" id="metodo-tarjeta">
+                                            <i class="bi bi-credit-card" style="font-size: 2rem;"></i>
+                                            <h6 class="mt-2 mb-0">Tarjeta</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="metodo-pago-card card text-center p-3"
+                                             onclick="seleccionarMetodo('transferencia')" id="metodo-transferencia">
+                                            <i class="bi bi-bank" style="font-size: 2rem;"></i>
+                                            <h6 class="mt-2 mb-0">Transferencia</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="metodo-pago-card card text-center p-3"
+                                             onclick="seleccionarMetodo('mercado_pago')" id="metodo-mercado_pago">
+                                            <i class="bi bi-wallet2" style="font-size: 2rem;"></i>
+                                            <h6 class="mt-2 mb-0">Mercado Pago</h6>
+                                        </div>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="metodo_pago" id="metodo_pago" value="efectivo" required>
+                            </div>
+
+                            <!-- Efectivo recibido (solo para efectivo) -->
+                            <div class="mb-4" id="seccion-efectivo">
+                                <h5 class="mb-3"><i class="bi bi-cash-stack"></i> Efectivo recibido</h5>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Monto recibido</label>
+                                        <div class="input-group input-group-lg">
+                                            <span class="input-group-text">$</span>
+                                            <input type="number" class="form-control" id="efectivo_recibido" 
+                                                   step="0.01" min="{{ total }}" value="{{ total }}" 
+                                                   oninput="calcularCambio()">
+                                        </div>
+                                        <small class="text-muted">Ingrese el monto recibido del cliente</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Cambio a entregar</label>
+                                        <div class="input-cambio bg-success text-white p-3 rounded" id="cambio">
+                                            $0.00
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">
+                                            <i class="bi bi-info-circle"></i> 
+                                            El cambio se calculará automáticamente
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Información adicional -->
+                            <div class="mb-4">
+                                <h5 class="mb-3"><i class="bi bi-info-circle"></i> Información adicional</h5>
+                                <div class="mb-3">
+                                    <label class="form-label">Observaciones (opcional)</label>
+                                    <textarea class="form-control" name="observaciones" rows="3" 
+                                              placeholder="Notas sobre el pago..."></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Botones -->
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <a href="/ver_orden/{{ orden_id }}" class="btn btn-outline-secondary btn-lg w-100">
+                                        <i class="bi bi-x-circle"></i> Cancelar
+                                    </a>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="submit" class="btn btn-cobrar btn-lg w-100">
+                                        <i class="bi bi-check-circle"></i> Confirmar Cobro
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- Instrucciones -->
+                        <div class="alert alert-info mt-4">
+                            <h6><i class="bi bi-lightbulb"></i> Instrucciones:</h6>
+                            <ol class="mb-0">
+                                <li>Seleccione el método de pago</li>
+                                <li>Si es efectivo, ingrese el monto recibido</li>
+                                <li>Verifique el cambio a entregar</li>
+                                <li>Complete observaciones si es necesario</li>
+                                <li>Confirme el cobro</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let metodoPagoSeleccionado = 'efectivo';
+        const total = {{ total }};
+
+        // Seleccionar método de pago
+        function seleccionarMetodo(metodo) {
+            metodoPagoSeleccionado = metodo;
+            
+            // Actualizar UI
+            document.querySelectorAll('.metodo-pago-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.getElementById(`metodo-${metodo}`).classList.add('selected');
+            document.getElementById('metodo_pago').value = metodo;
+            
+            // Mostrar/ocultar sección de efectivo
+            const seccionEfectivo = document.getElementById('seccion-efectivo');
+            if (metodo === 'efectivo') {
+                seccionEfectivo.style.display = 'block';
+                document.getElementById('efectivo_recibido').focus();
+            } else {
+                seccionEfectivo.style.display = 'none';
+            }
+            
+            console.log('Método seleccionado:', metodo);
+        }
+
+        // Calcular cambio
+        function calcularCambio() {
+            const recibido = parseFloat(document.getElementById('efectivo_recibido').value) || 0;
+            const cambio = recibido - total;
+            
+            const cambioElement = document.getElementById('cambio');
+            if (cambio >= 0) {
+                cambioElement.textContent = '$' + cambio.toFixed(2);
+                cambioElement.className = 'input-cambio bg-success text-white p-3 rounded';
+            } else {
+                cambioElement.textContent = 'Falta: $' + Math.abs(cambio).toFixed(2);
+                cambioElement.className = 'input-cambio bg-danger text-white p-3 rounded';
+            }
+        }
+
+        // Validar formulario
+        document.querySelector('form').addEventListener('submit', function(e) {
+            if (metodoPagoSeleccionado === 'efectivo') {
+                const recibido = parseFloat(document.getElementById('efectivo_recibido').value) || 0;
+                if (recibido < total) {
+                    e.preventDefault();
+                    alert('El monto recibido no puede ser menor al total');
+                    document.getElementById('efectivo_recibido').focus();
+                    return;
+                }
+            }
+            
+            if (!confirm(`¿Confirmar cobro de $${total.toFixed(2)} por ${metodoPagoSeleccionado}?`)) {
+                e.preventDefault();
+            }
+        });
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            seleccionarMetodo('efectivo');
+            calcularCambio();
+            
+            // Atajos de teclado
+            document.addEventListener('keydown', function(e) {
+                // Números para métodos de pago
+                if (e.key === '1') seleccionarMetodo('efectivo');
+                if (e.key === '2') seleccionarMetodo('tarjeta');
+                if (e.key === '3') seleccionarMetodo('transferencia');
+                if (e.key === '4') seleccionarMetodo('mercado_pago');
+                
+                // Enter para confirmar
+                if (e.key === 'Enter' && !e.target.matches('textarea')) {
+                    e.preventDefault();
+                    document.querySelector('button[type="submit"]').click();
+                }
+                
+                // Escape para cancelar
+                if (e.key === 'Escape') {
+                    window.location.href = '/ver_orden/' + {{ orden_id }};
+                }
+                
+                // F1 para ayuda
+                if (e.key === 'F1') {
+                    e.preventDefault();
+                    alert('Atajos de teclado:\n' +
+                          '• 1: Efectivo\n• 2: Tarjeta\n• 3: Transferencia\n• 4: Mercado Pago\n' +
+                          '• Enter: Confirmar\n• Escape: Cancelar\n• F1: Ayuda');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

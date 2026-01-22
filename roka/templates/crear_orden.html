@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crear Orden - Mesa {{ mesa.numero }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .producto-card {
+            cursor: pointer;
+            transition: all 0.2s;
+            height: 100%;
+        }
+        .producto-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-color: #0d6efd !important;
+        }
+        .badge-tipo {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 0.7rem;
+        }
+        .badge-comida { background-color: #6f42c1; }
+        .badge-bebida { background-color: #20c997; }
+        .badge-producto { background-color: #fd7e14; }
+        .precio {
+            font-weight: 600;
+            color: #198754;
+            font-size: 1.1rem;
+        }
+        .item-lista {
+            border-left: 4px solid #0d6efd;
+            margin-bottom: 8px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        #resumen-orden {
+            position: sticky;
+            top: 20px;
+        }
+        .observaciones {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-style: italic;
+            margin-top: 5px;
+        }
+        .btn-agregar {
+            transition: all 0.2s;
+        }
+        .btn-agregar:hover {
+            transform: scale(1.05);
+        }
+        .producto-oculto {
+            display: none !important;
+        }
+        .contador-resultados {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/ordenes">POS Restaurante</a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    Mesa {{ mesa.numero }} | {{ usuario.nombre }}
+                </span>
+                <a class="nav-link" href="/ordenes">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <!-- Columna izquierda: Productos -->
+            <div class="col-md-8">
+                <!-- Filtro activo -->
+                <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <i class="bi bi-funnel"></i> 
+                        <strong>Filtro activo:</strong> {{ nombre_filtro }}
+                        <span class="contador-resultados ms-2" id="contador-resultados">
+                            ({{ productos|length }} productos)
+                        </span>
+                    </div>
+                    <div>
+                        <a href="{{ url_for('ordenes') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-arrow-left"></i> Cambiar filtro
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Mensajes flash -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show mb-3">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- BÚSQUEDA Y FILTROS -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <!-- Barra de búsqueda -->
+                        <div class="mb-3">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="buscador-productos" 
+                                       placeholder="Buscar productos por nombre..."
+                                       autocomplete="off">
+                                <button class="btn btn-outline-secondary" type="button" onclick="limpiarBusqueda()">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted mt-1 d-block">
+                                Escribe para filtrar productos. Busca por nombre, tipo o precio.
+                            </small>
+                        </div>
+
+                        <!-- Filtros rápidos -->
+                        <div class="btn-group w-100" role="group">
+                            <a href="/crear_orden/{{ mesa.id }}?filtro=todos" 
+                               class="btn btn-outline-secondary {% if tipo_filtro == 'todos' %}active{% endif %}">
+                                Todos
+                            </a>
+                            <a href="/crear_orden/{{ mesa.id }}?filtro=comida" 
+                               class="btn btn-outline-primary {% if tipo_filtro == 'comida' %}active{% endif %}">
+                                <i class="bi bi-egg-fried"></i> Comidas
+                            </a>
+                            <a href="/crear_orden/{{ mesa.id }}?filtro=bebida" 
+                               class="btn btn-outline-success {% if tipo_filtro == 'bebida' %}active{% endif %}">
+                                <i class="bi bi-cup-straw"></i> Bebidas
+                            </a>
+                            <a href="/crear_orden/{{ mesa.id }}?filtro=producto" 
+                               class="btn btn-outline-warning {% if tipo_filtro == 'producto' %}active{% endif %}">
+                                <i class="bi bi-box"></i> Productos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grid de productos -->
+                {% if productos %}
+                <div class="row g-3" id="grid-productos">
+                    {% for producto in productos %}
+                    <div class="col-6 col-md-4 col-lg-3 producto-item" 
+                         data-id="{{ producto.id }}"
+                         data-nombre="{{ producto.nombre|lower }}"
+                         data-tipo="{{ producto.tipo }}"
+                         data-precio="{{ producto.precio }}">
+                        <div class="card border h-100">
+                            <div class="card-body position-relative">
+                                {% if producto.tipo == 'comida' %}
+                                    <span class="badge badge-comida badge-tipo">Comida</span>
+                                {% elif producto.tipo == 'bebida' %}
+                                    <span class="badge badge-bebida badge-tipo">Bebida</span>
+                                {% else %}
+                                    <span class="badge badge-producto badge-tipo">Producto</span>
+                                {% endif %}
+                                
+                                <h6 class="card-title mb-2">{{ producto.nombre }}</h6>
+                                <p class="precio mb-3">
+                                    ${{ "%.2f"|format(producto.precio) }}
+                                </p>
+                                
+                                <!-- Botón de agregar - SIMPLIFICADO -->
+                                <button class="btn btn-primary btn-sm w-100 btn-agregar" 
+                                        data-id="{{ producto.id }}"
+                                        data-nombre="{{ producto.nombre }}"
+                                        data-precio="{{ producto.precio }}">
+                                    <i class="bi bi-plus-circle"></i> Agregar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Mensaje cuando no hay resultados -->
+                <div id="sin-resultados" class="text-center py-5" style="display: none;">
+                    <i class="bi bi-search" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">No se encontraron productos</h5>
+                    <p class="text-muted">Intenta con otras palabras o cambia el filtro</p>
+                    <button class="btn btn-primary" onclick="limpiarBusqueda()">
+                        <i class="bi bi-arrow-clockwise"></i> Limpiar búsqueda
+                    </button>
+                </div>
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-emoji-frown" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">No hay productos disponibles</h5>
+                    <p class="text-muted">No se encontraron productos con el filtro aplicado</p>
+                    <a href="/crear_orden/{{ mesa.id }}?filtro=todos" class="btn btn-primary">
+                        <i class="bi bi-eye"></i> Ver todos los productos
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Columna derecha: Resumen de orden -->
+            <div class="col-md-4">
+                <div class="card" id="resumen-orden">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-cart"></i> Orden - Mesa {{ mesa.numero }}
+                            <span class="badge bg-warning float-end" id="contador-items">0 items</span>
+                        </h5>
+                        <small>Capacidad: {{ mesa.capacidad }} personas</small>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- Lista de items -->
+                        <h6>Items seleccionados:</h6>
+                        <div id="lista-items" class="mb-3" style="max-height: 300px; overflow-y: auto;">
+                            <div class="text-muted text-center py-5" id="sin-items">
+                                <i class="bi bi-cart-x" style="font-size: 2rem;"></i>
+                                <p class="mt-2">No hay items en la orden</p>
+                                <small>Selecciona productos de la izquierda</small>
+                            </div>
+                        </div>
+
+                        <!-- Resumen total -->
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Subtotal:</span>
+                                    <span id="subtotal">$0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>IVA (21%):</span>
+                                    <span id="iva">$0.00</span>
+                                </div>
+                                <hr>
+                                <div class="d-flex justify-content-between fs-5 fw-bold">
+                                    <span>TOTAL:</span>
+                                    <span id="total">$0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Observaciones -->
+                        <div class="mb-3">
+                            <label class="form-label">Observaciones:</label>
+                            <textarea class="form-control" id="observaciones" 
+                                      rows="2" placeholder="Notas especiales para la orden..."></textarea>
+                        </div>
+
+                        <!-- Botones -->
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success btn-lg" onclick="crearOrden()">
+                                <i class="bi bi-check-circle"></i> Crear Orden
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="limpiarOrden()">
+                                <i class="bi bi-trash"></i> Limpiar Todo
+                            </button>
+                            <a href="{{ url_for('ordenes') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Cancelar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para cantidad y observaciones -->
+    <div class="modal fade" id="modalCantidad" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Agregar producto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong id="modal-producto-nombre"></strong></p>
+                    <p>Precio unitario: <strong id="modal-producto-precio"></strong></p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Cantidad:</label>
+                        <input type="number" id="modal-cantidad" class="form-control" value="1" min="1" max="99">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones (opcional):</label>
+                        <textarea id="modal-obs" class="form-control" rows="2" 
+                                  placeholder="Ej: Sin sal, bien cocido, sin cebolla, etc."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmarProducto()">
+                        <i class="bi bi-plus-circle"></i> Agregar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables globales
+        let productosSeleccionados = [];
+        let productoActual = null;
+        const mesaId = {{ mesa.id }};
+
+        // DEBUG: Verificar que el script se carga
+        console.log('Script de crear_orden cargado correctamente');
+
+        // ==================== FUNCIÓN DE BÚSQUEDA ====================
+        function inicializarBusqueda() {
+            const buscador = document.getElementById('buscador-productos');
+            if (!buscador) return;
+            
+            // Buscar en tiempo real mientras se escribe
+            buscador.addEventListener('input', function(e) {
+                const textoBusqueda = e.target.value.toLowerCase().trim();
+                filtrarProductos(textoBusqueda);
+            });
+            
+            console.log('Búsqueda inicializada');
+        }
+        
+        function filtrarProductos(textoBusqueda) {
+            const productos = document.querySelectorAll('.producto-item');
+            let productosVisibles = 0;
+            
+            if (!textoBusqueda) {
+                // Mostrar todos si no hay búsqueda
+                productos.forEach(producto => {
+                    producto.classList.remove('producto-oculto');
+                });
+                productosVisibles = productos.length;
+            } else {
+                // Filtrar por búsqueda
+                productos.forEach(producto => {
+                    const nombre = producto.getAttribute('data-nombre') || '';
+                    const tipo = producto.getAttribute('data-tipo') || '';
+                    const precio = producto.getAttribute('data-precio') || '';
+                    
+                    // Buscar en nombre, tipo o precio
+                    const coincideNombre = nombre.includes(textoBusqueda);
+                    const coincideTipo = tipo.includes(textoBusqueda);
+                    const coincidePrecio = precio.toString().includes(textoBusqueda);
+                    
+                    if (coincideNombre || coincideTipo || coincidePrecio) {
+                        producto.classList.remove('producto-oculto');
+                        productosVisibles++;
+                    } else {
+                        producto.classList.add('producto-oculto');
+                    }
+                });
+            }
+            
+            // Actualizar contador
+            actualizarContadorResultados(productosVisibles, productos.length);
+            
+            // Mostrar/ocultar mensaje de no resultados
+            const sinResultados = document.getElementById('sin-resultados');
+            if (sinResultados) {
+                if (productosVisibles === 0 && textoBusqueda) {
+                    sinResultados.style.display = 'block';
+                } else {
+                    sinResultados.style.display = 'none';
+                }
+            }
+            
+            console.log(`Búsqueda: "${textoBusqueda}" - ${productosVisibles}/${productos.length} productos visibles`);
+        }
+        
+        function actualizarContadorResultados(visibles, total) {
+            const contador = document.getElementById('contador-resultados');
+            if (contador) {
+                const buscador = document.getElementById('buscador-productos');
+                const textoBusqueda = buscador ? buscador.value.trim() : '';
+                
+                if (textoBusqueda) {
+                    contador.innerHTML = `(${visibles} de ${total} productos encontrados)`;
+                } else {
+                    contador.innerHTML = `(${total} productos)`;
+                }
+            }
+        }
+        
+        function limpiarBusqueda() {
+            const buscador = document.getElementById('buscador-productos');
+            if (buscador) {
+                buscador.value = '';
+                filtrarProductos('');
+                buscador.focus();
+            }
+        }
+        // ==================== FIN FUNCIÓN DE BÚSQUEDA ====================
+
+        // ==================== MANEJADOR DE CLICK EN BOTONES AGREGAR ====================
+        function inicializarBotonesAgregar() {
+            // Agregar event listeners a todos los botones de agregar
+            document.addEventListener('click', function(e) {
+                // Verificar si se hizo clic en un botón de agregar
+                if (e.target.classList.contains('btn-agregar') || 
+                    e.target.closest('.btn-agregar')) {
+                    
+                    const boton = e.target.classList.contains('btn-agregar') ? 
+                                 e.target : e.target.closest('.btn-agregar');
+                    
+                    const id = parseInt(boton.getAttribute('data-id'));
+                    const nombre = boton.getAttribute('data-nombre');
+                    const precio = parseFloat(boton.getAttribute('data-precio'));
+                    
+                    console.log('Botón agregar clickeado:', {id, nombre, precio});
+                    
+                    seleccionarProducto(id, nombre, precio);
+                }
+            });
+            
+            console.log('Botones de agregar inicializados');
+        }
+
+        // Seleccionar producto (abre modal) - FUNCIÓN SIMPLIFICADA
+        function seleccionarProducto(id, nombre, precio) {
+            console.log('Función seleccionarProducto llamada:', {id, nombre, precio});
+            
+            productoActual = { 
+                id: id, 
+                nombre: nombre, 
+                precio: precio
+            };
+            
+            console.log('Producto actual establecido:', productoActual);
+            
+            // Actualizar modal
+            document.getElementById('modal-producto-nombre').textContent = nombre;
+            document.getElementById('modal-producto-precio').textContent = '$' + parseFloat(precio).toFixed(2);
+            document.getElementById('modal-cantidad').value = 1;
+            document.getElementById('modal-obs').value = '';
+            
+            // Mostrar modal
+            const modalElement = document.getElementById('modalCantidad');
+            if (modalElement) {
+                const modal = new bootstrap.Modal(modalElement);
+                modal.show();
+                console.log('Modal mostrado');
+            } else {
+                console.error('Modal no encontrado');
+            }
+        }
+
+        // Confirmar producto del modal
+        function confirmarProducto() {
+            console.log('Función confirmarProducto llamada');
+            
+            if (!productoActual) {
+                alert('Error: No hay producto seleccionado');
+                console.error('productoActual es null');
+                return;
+            }
+            
+            const cantidadInput = document.getElementById('modal-cantidad');
+            const observacionesInput = document.getElementById('modal-obs');
+            
+            if (!cantidadInput || !observacionesInput) {
+                alert('Error: Campos del modal no encontrados');
+                return;
+            }
+            
+            const cantidad = parseInt(cantidadInput.value) || 1;
+            const observaciones = observacionesInput.value.trim();
+            
+            console.log('Agregando producto:', productoActual, 'Cantidad:', cantidad);
+            
+            // Verificar si ya existe el producto
+            const indexExistente = productosSeleccionados.findIndex(p => p.id === productoActual.id);
+            
+            if (indexExistente >= 0) {
+                // Actualizar cantidad si ya existe
+                productosSeleccionados[indexExistente].cantidad += cantidad;
+                if (observaciones) {
+                    productosSeleccionados[indexExistente].observaciones = observaciones;
+                }
+                console.log('Producto actualizado:', productosSeleccionados[indexExistente]);
+            } else {
+                // Agregar nuevo producto
+                const nuevoProducto = {
+                    id: productoActual.id,
+                    nombre: productoActual.nombre,
+                    precio: productoActual.precio,
+                    cantidad: cantidad,
+                    observaciones: observaciones
+                };
+                productosSeleccionados.push(nuevoProducto);
+                console.log('Nuevo producto agregado:', nuevoProducto);
+            }
+            
+            console.log('Productos seleccionados:', productosSeleccionados);
+            
+            // Actualizar vista
+            actualizarListaItems();
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalCantidad'));
+            if (modal) {
+                modal.hide();
+                console.log('Modal cerrado');
+            }
+            
+            // Mostrar alerta simple
+            alert(`✓ ${cantidad}x "${productoActual.nombre}" agregado a la orden`);
+        }
+
+        // Actualizar lista de items
+        function actualizarListaItems() {
+            console.log('Actualizando lista de items...');
+            
+            const lista = document.getElementById('lista-items');
+            const sinItems = document.getElementById('sin-items');
+            const contadorItems = document.getElementById('contador-items');
+            
+            if (!lista || !sinItems) {
+                console.error('Elementos del DOM no encontrados');
+                return;
+            }
+            
+            if (productosSeleccionados.length === 0) {
+                sinItems.style.display = 'block';
+                lista.innerHTML = '';
+                if (contadorItems) contadorItems.textContent = '0 items';
+                document.getElementById('subtotal').textContent = '$0.00';
+                document.getElementById('iva').textContent = '$0.00';
+                document.getElementById('total').textContent = '$0.00';
+                console.log('No hay items, mostrando mensaje vacío');
+            } else {
+                sinItems.style.display = 'none';
+                
+                let html = '';
+                let subtotal = 0;
+                let totalItems = 0;
+                
+                productosSeleccionados.forEach((item, index) => {
+                    const totalItem = item.precio * item.cantidad;
+                    subtotal += totalItem;
+                    totalItems += item.cantidad;
+                    
+                    html += `
+                    <div class="item-lista">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between">
+                                    <strong>${item.nombre}</strong>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarItem(${index})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <div>
+                                        <span class="badge bg-secondary">${item.cantidad} x $${item.precio.toFixed(2)}</span>
+                                    </div>
+                                    <span class="text-success fw-bold">$${totalItem.toFixed(2)}</span>
+                                </div>
+                                ${item.observaciones ? 
+                                    `<div class="observaciones mt-2"><i class="bi bi-chat-left-text"></i> ${item.observaciones}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                
+                lista.innerHTML = html;
+                if (contadorItems) contadorItems.textContent = totalItems + ' item' + (totalItems !== 1 ? 's' : '');
+                
+                // Calcular totales
+                const iva = subtotal * 0.21;
+                const total = subtotal + iva;
+                
+                document.getElementById('subtotal').textContent = '$' + subtotal.toFixed(2);
+                document.getElementById('iva').textContent = '$' + iva.toFixed(2);
+                document.getElementById('total').textContent = '$' + total.toFixed(2);
+                
+                console.log('Lista actualizada. Subtotal:', subtotal, 'Total:', total);
+            }
+        }
+
+        // Eliminar item de la lista
+        function eliminarItem(index) {
+            if (confirm('¿Eliminar este item de la orden?')) {
+                const productoEliminado = productosSeleccionados[index];
+                productosSeleccionados.splice(index, 1);
+                actualizarListaItems();
+                alert(`"${productoEliminado.nombre}" eliminado de la orden`);
+            }
+        }
+
+        // Limpiar toda la orden
+        function limpiarOrden() {
+            if (productosSeleccionados.length === 0) {
+                alert('La orden ya está vacía');
+                return;
+            }
+            
+            if (confirm('¿Estás seguro de limpiar toda la orden?')) {
+                productosSeleccionados = [];
+                actualizarListaItems();
+                document.getElementById('observaciones').value = '';
+                alert('Orden limpiada completamente');
+            }
+        }
+
+        // Crear orden (enviar al servidor)
+        function crearOrden() {
+            console.log('Función crearOrden llamada');
+            
+            if (productosSeleccionados.length === 0) {
+                alert('Debe agregar al menos un producto a la orden');
+                return;
+            }
+            
+            const observaciones = document.getElementById('observaciones').value.trim();
+            const total = document.getElementById('total').textContent;
+            
+            // Confirmar antes de crear
+            if (!confirm(`¿Crear orden por ${total}?\n\nTotal de items: ${productosSeleccionados.length}\n\n¿Continuar?`)) {
+                return;
+            }
+            
+            // Preparar datos para enviar
+            const ordenData = {
+                mesa_id: mesaId,
+                items: productosSeleccionados,
+                observaciones: observaciones
+            };
+            
+            console.log('Enviando orden:', ordenData);
+            
+            // Mostrar loading
+            const crearBtn = document.querySelector('button[onclick="crearOrden()"]');
+            const originalText = crearBtn.innerHTML;
+            crearBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Creando...';
+            crearBtn.disabled = true;
+            
+            // Enviar al servidor
+            fetch('/api/crear_orden', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ordenData)
+            })
+            .then(response => {
+                console.log('Respuesta recibida, status:', response.status);
+                return response.json();
+            })
+            .then(result => {
+                console.log('Resultado:', result);
+                
+                if (result.success) {
+                    alert(`✅ Orden #${result.orden_id} creada exitosamente\nTotal: ${total}`);
+                    window.location.href = '/ver_orden/' + result.orden_id;
+                } else {
+                    alert('❌ Error: ' + result.message);
+                    crearBtn.innerHTML = originalText;
+                    crearBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error de conexión con el servidor');
+                crearBtn.innerHTML = originalText;
+                crearBtn.disabled = false;
+            });
+        }
+
+        // Atajos de teclado
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+F para enfocar búsqueda
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                const buscador = document.getElementById('buscador-productos');
+                if (buscador) {
+                    buscador.focus();
+                    buscador.select();
+                }
+            }
+            // Escape para cancelar
+            else if (e.key === 'Escape') {
+                const buscador = document.getElementById('buscador-productos');
+                if (buscador && buscador.value) {
+                    limpiarBusqueda();
+                } else if (confirm('¿Cancelar y volver a órdenes?')) {
+                    window.location.href = '/ordenes';
+                }
+            }
+        });
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Página cargada correctamente');
+            console.log('Mesa ID:', mesaId);
+            console.log('Productos disponibles: {{ productos|length }}');
+            
+            // Inicializar búsqueda
+            inicializarBusqueda();
+            
+            // Inicializar botones de agregar
+            inicializarBotonesAgregar();
+            
+            // Enfocar búsqueda automáticamente
+            setTimeout(() => {
+                const buscador = document.getElementById('buscador-productos');
+                if (buscador) {
+                    buscador.focus();
+                    console.log('Buscador enfocado');
+                }
+            }, 500);
+            
+            // Verificar que las funciones estén disponibles
+            console.log('Funciones disponibles:');
+            console.log('- seleccionarProducto:', typeof seleccionarProducto);
+            console.log('- confirmarProducto:', typeof confirmarProducto);
+            console.log('- crearOrden:', typeof crearOrden);
+            
+            // Verificar que hay botones de agregar
+            const botonesAgregar = document.querySelectorAll('.btn-agregar');
+            console.log(`Botones de agregar encontrados: ${botonesAgregar.length}`);
+            
+            if (botonesAgregar.length > 0) {
+                console.log('Primer botón:', botonesAgregar[0]);
+                console.log('data-id:', botonesAgregar[0].getAttribute('data-id'));
+                console.log('data-nombre:', botonesAgregar[0].getAttribute('data-nombre'));
+                console.log('data-precio:', botonesAgregar[0].getAttribute('data-precio'));
+            }
+        });
+    </script>
+</body>
+</html>
