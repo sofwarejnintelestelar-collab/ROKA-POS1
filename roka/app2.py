@@ -1,7 +1,7 @@
 # ==============================
 # IMPORTS CORRECTOS
 # ==============================
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash, make_response
 import psycopg2
 from datetime import datetime, date, timedelta
 import json
@@ -332,8 +332,34 @@ def get_usuario_actual():
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Si no hay sesión, redirigir a login
         if 'user_id' not in session:
+            print(f"🔴 No hay sesión en {request.path} - redirigiendo a login")
             return redirect(url_for('login'))
+        
+        # Verificar que el usuario existe en DB
+        try:
+            usuario = get_usuario_actual()
+            if not usuario:
+                print(f"⚠️ Usuario ID {session['user_id']} no existe - limpiando sesión")
+                session.clear()
+                flash('Sesión inválida. Por favor, inicia sesión nuevamente.', 'warning')
+                return redirect(url_for('login'))
+        except Exception as e:
+            print(f"❌ Error verificando usuario: {e}")
+            session.clear()
+            flash('Error de sesión. Por favor, inicia sesión nuevamente.', 'danger')
+            return redirect(url_for('login'))
+        
+        # Prevenir loops - si estamos en login con sesión válida, redirigir a la página correspondiente
+        if request.endpoint == 'login':
+            if usuario['rol'] == 'chef':
+                return redirect(url_for('chef'))
+            elif usuario['rol'] == 'mozo':
+                return redirect(url_for('ordenes'))
+            else:
+                return redirect(url_for('caja'))
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -368,6 +394,20 @@ def abrir_caja_automaticamente():
             conn.close()
         except:
             pass
+
+# ==============================
+# RUTA DE EMERGENCIA PARA ROMPER EL LOOP
+# ==============================
+@app.route("/reset")
+def reset_session():
+    """Limpia la sesión y cookies para romper el loop"""
+    session.clear()
+    response = make_response(redirect(url_for('login')))
+    # Eliminar cookies del navegador
+    response.set_cookie('session', '', expires=0)
+    response.set_cookie('remember_token', '', expires=0)
+    flash('Sesión limpiada. Por favor, inicia sesión nuevamente.', 'info')
+    return response
 
 # ==============================
 # RUTAS PRINCIPALES
